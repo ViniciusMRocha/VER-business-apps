@@ -127,3 +127,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Custome Ignore
+src/data/**
+src/product-watcher/config.py
+src/web-driver/chromedriver
