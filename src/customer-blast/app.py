@@ -52,7 +52,7 @@ def send_messages(environment):
         if active == 'Y':
             print('Sending message to {} on number {}'.format(name, number))
             message = f'Hey {name}, {todays_message}'
-            script = 'send-message.applescript'
+            script = '../../scripts/send-message.applescript'
             command = f'osascript scripts/{script} {number} "{message}"'
             os.system(command)
 

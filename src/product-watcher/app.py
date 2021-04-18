@@ -1,106 +1,174 @@
-# # pip install selenium
+# pip install selenium
 import os
-import sys
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
 import time
 import datetime
 import config
+import enums
+import smtplib
 
-# variables
-wait_time = 5
-txt_script = 'send-message.applescript'
-driver_path = '../web-driver/chromedriver'
-product_xpath = '/html/body/main/div[11]/div[2]/div[1]/div[2]/div/div[2]/div/div[2]/div[1]/div[1]/div/div/div[1]/div[2]/div/span/span[2]'
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options
 
-# product_name = 'Artistry-Ideal-Radiance'
-# product_url = 'https://www.amway.com/en_US/Artistry-Ideal-Radiance%26trade%3B-Illuminating-CC-Cream---Light-Medium-p-118207?searchTerm=light%20medium'
+SEND_MESSAGE_SCRIPT = '../../scripts/send-message.applescript'
+RERUN_WAIT_TIME = 5
+PRODUCTS = {'124936': 'Collagen Shots',
+            '300325': 'CBD Pro Sample',
+            '124557': 'Focus Shot'}
 
-# Arguments
-product_name = sys.argv[1]
-product_url = sys.argv[2]
-
-print('Watching for {} \n'.format(product_name))
-print('URL: {} \n'.format(product_url))
 
 # Set Setting for chrome
 chrome_options = Options()
-# chrome_options.add_argument('--headless') # Headless being off is needed for login
-DRIVER = webdriver.Chrome(driver_path, options=chrome_options)
-
-# ================== Functions ==================
+DRIVER = webdriver.Chrome('../web-driver/chromedriver',
+                          options=chrome_options)
 
 
 def login():
     DRIVER.get('https://www.amway.com/en_US/')
 
-    sign_in = '//*[@id="mainHeader"]/div/header/div[2]/div/div[3]/div[3]/div/div[1]/button'
-    DRIVER.find_element_by_xpath(sign_in).click()
+    time.sleep(1)
+    DRIVER.find_element_by_xpath(enums.LogIn.sign_in.value).click()
 
-    sign_in_menu = '/html/body/main/div[3]/div/div/ul/li[1]/a'
-    DRIVER.find_element_by_xpath(sign_in_menu).click()
+    time.sleep(1)
+    DRIVER.find_element_by_xpath(enums.LogIn.sign_in_menu.value).click()
 
-    time.sleep(3)
-
-    amway_id_input = '/html/body/div/div/div/app-root/div/div[1]/div/app-signin/div/div/div/div/div/div/app-smart-id/div/app-form-field/div/input'
-    amway_id_input = DRIVER.find_element_by_xpath(amway_id_input)
+    time.sleep(5)
+    amway_id_input = DRIVER.find_element_by_xpath(enums.LogIn.amway_id_input.value)
+    amway_id_input.click()
     amway_id_input.send_keys(config.email)
 
-    password_input = '/html/body/div/div/div/app-root/div/div[1]/div/app-signin/div/div/div/div/div/div/password/div/div[2]/input'
-    password_input = DRIVER.find_element_by_xpath(password_input)
+    password_input = DRIVER.find_element_by_xpath(enums.LogIn.password_input.value)
+    password_input.click()
     password_input.send_keys(config.password)
 
-    sign_in_btn = '/html/body/div/div/div/app-root/div/div[1]/div/app-signin/div/div/div/div/div/div/app-button/button'
+    sign_in_btn = enums.LogIn.sign_in_btn.value
     DRIVER.find_element_by_xpath(sign_in_btn).click()
+    time.sleep(5)
 
 
-def get_product_info(url, availability_xpath):
-    # Open Chrome on the URL
-    DRIVER.get(url)
-
-    product_name_xpath = '/html/body/main/div[11]/div[2]/div[1]/div[2]/div/div[1]/div[1]/div/div/div/h1/span'
-
-    # Get test from the HTML element
-    availability = DRIVER.find_element_by_xpath(availability_xpath).text
-    product_name = DRIVER.find_element_by_xpath(product_name_xpath).text
-    print('PRODUCT_NAME:', product_name)
-
-    # Wait a second and close the window
+def logout():
     time.sleep(1)
-    DRIVER.quit()
+    DRIVER.find_element_by_xpath(enums.LogIn.sign_in.value).click()
 
-    return {'Availability': availability, 'ProductName': product_name}
+    time.sleep(1)
+    DRIVER.find_element_by_xpath(enums.Home.sign_out.value).click()
 
 
-def send_message(data, product_name, product_url):
+def get_product_info(item_id):
+
+    # Send SKU to the search bar
+    search_bar = DRIVER.find_element_by_xpath(enums.Home.search_bar.value)
+    search_bar.click()
+    search_bar.send_keys(item_id)
+    search_bar.send_keys(Keys.RETURN)
+
+    # Click on the first product link
+    time.sleep(3)
+    product_link = DRIVER.find_element_by_xpath(enums.Product.product_link.value)
+    product_link.click()
+
+    # Get the product availability
+    time.sleep(3)
+    availability = DRIVER.find_element_by_xpath(enums.Product.availability.value).text
+
+    return {'id': item_id, 'availability': availability}
+
+
+def send_text_as_email(number, carrier, from_email, from_email_pass, message):
+    """ Used for sending SMS to non iPhone users """
+    # Not implemented yet
+
+    carriers = {'att': '@mms.att.net',
+                'verizon': '@vtext.com',
+                'tmobile': ' @tmomail.net',
+                'sprint': '@page.nextel.com'}
+
+    contact_carrier = carriers[carrier]
+    to_number = f'{number}{contact_carrier}'
+    subject = 'Subject: Product Update:\n'
+    conn = smtplib.SMTP_SSL('smtp.mail.gmail.com', 465)
+    conn.ehlo()
+    conn.login(from_email, from_email_pass)
+    conn.sendmail(from_email, to_number, subject + message)
+    conn.quit()
+
+
+def send_notification(sku, product_name):
+    # Get contact list form config
+    contact_list = config.contact_list
     # Iterate over each contact
-    for contact in data['ContactList']:
-        name = contact['name']
-        number = contact['number']
-
+    for name in contact_list:
+        # Get number
+        number = contact_list[name]
+        # Compose product link variable
+        product_link = f'https://www.amway.com/en_US/search/?text={sku}'
         # Form message
-        message = 'Hey {}, {} is back in stock\n{}'.format(name, product_name, product_url)
-
+        message = f'Hey {name}, {product_name} is back in stock\n{product_link}'
         # Form the command to send message
-        command = 'osascript ../../scripts/{} {} "{}"'.format(txt_script, number, message)
-
+        command = f'osascript {SEND_MESSAGE_SCRIPT} {number} "{message}"'
         # Execute the send message command
         os.system(command)
 
-        print('Sending message to {} on number {}'.format(name, number))
+        print(f'Sending message to {name} on number {number}')
 
 
-# ================== App ==================
-login()
-out_of_stock = 'Temporarily Out-of-Stock'
-status = out_of_stock
-while status == out_of_stock:
-    print(datetime.datetime.now(), status)
-    product_info = get_product_info(product_url, product_xpath)
-    status = product_info['Availability']
-    time.sleep(wait_time)
-    if status != out_of_stock:
-        # product_name = product_info['ProductName']
-        send_message(config.contact_list, product_name, product_url)
-        print(status)
+def check_report(report):
+    # Check the report and send a text for the available ones
+    for sku in report:
+        # Check if sku status is in stock
+        if report[sku] == 'In Stock':
+            # Get product name
+            product_name = PRODUCTS[sku]
+            # Removed sku that was already communicated to be in stock
+            PRODUCTS.pop(sku)
+            # Notify about the product being in stock
+            send_notification(sku, product_name)
+
+
+def run_app():
+    """ Handler """
+    try:
+        while PRODUCTS:
+            # Log in to the website
+            login()
+
+            # Get product status
+            report = {}
+            for item_id in PRODUCTS:
+                # Get product availability
+                availability = get_product_info(item_id)
+                report.update({availability['id']: availability['availability']})
+
+            # Evaluate report and send messages
+            check_report(report)
+
+            print(datetime.datetime.now())
+            print('Current Report')
+            print(report)
+            print('--------------------')
+
+            # Wait time for the next check
+            logout()
+            time.sleep(RERUN_WAIT_TIME)
+
+        if not PRODUCTS:
+            # Notify that all the products were evaluated
+            message = 'All product were reported. Product watch will terminate'
+            command = f'osascript ../../scripts/{SEND_MESSAGE_SCRIPT} {config.support_number} "{message}"'
+            os.system(command)
+
+    except Exception:
+        # Notify that there was an exception
+        message = 'There was an issue with the product watcher'
+        command = f'osascript ../../scripts/{SEND_MESSAGE_SCRIPT} {config.support_number} "{message}"'
+        os.system(command)
+        raise
+
+    finally:
+        # Close browser
+        DRIVER.quit()
+        print('======== The End ========')
+
+
+if __name__ == "__main__":
+    run_app()

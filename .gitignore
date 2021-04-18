@@ -128,7 +128,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# Settings
+.vscode/
+
 # Custome Ignore
 src/data/**
 src/product-watcher/config.py
+src/product-watcher/contact_list.json
 src/web-driver/chromedriver
